@@ -1,52 +1,65 @@
 import numpy as np
 import cv2
 from matplotlib import pyplot as plt
+from tqdm import tqdm
+import torch
+import torch.nn.functional as F
+import time
 
-# 定义卷积函数
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Define RGB convolve function.
 def convolve(image, kernel):
-    h, w = image.shape
-    kh, kw = kernel.shape
-    pad_h, pad_w = kh // 2, kw // 2
-    
-    # 填充图像
-    padded_image = np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant', constant_values=0)
-    result = np.zeros_like(image)
-    
-    # 卷积操作
-    for i in range(h):
-        for j in range(w):
-            result[i, j] = np.sum(padded_image[i:i+kh, j:j+kw] * kernel)
-    return result
+    # convert to PyTorch Tensor (C, H, W)
+    image_tensor = torch.tensor(image, dtype=torch.float32, device=device).permute(2, 0, 1).unsqueeze(0)
+    kernel_tensor = torch.tensor(kernel, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)
 
-# 读取图像
-image = cv2.imread("resources/RaindowStudioLogo.png", cv2.IMREAD_GRAYSCALE)  # 读取灰度图
+    # convolve to each channel
+    result_channels = []
+    for c in range(image_tensor.shape[1]):
+        channel = image_tensor[:, c:c+1, :, :]
+        result_channel = F.conv2d(channel, kernel_tensor, padding=kernel_tensor.shape[-1] // 2)  # 卷积操作
+        result_channels.append(result_channel)
 
-# 定义不同的卷积核
-blur_kernel = np.array([[1, 1, 1],
-                        [1, 1, 1],
-                        [1, 1, 1]]) / 9
+    # merge all channel
+    result = torch.cat(result_channels, dim=1).squeeze(0).permute(1, 2, 0)
+    return result.cpu().numpy()
 
-sharpen_kernel = np.array([[0, -1, 0],
-                           [-1, 5, -1],
-                           [0, -1, 0]])
+print("Start...")
 
-edge_kernel = np.array([[-1, -1, -1],
-                        [-1, 8, -1],
-                        [-1, -1, -1]])
+# Read image
+image = cv2.imread("resources/RaindowStudioHomePageLightMode.jpg")  # read by BGR
+print("Image loaded start convert to RGB...")
+image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # convert to RGB
+print("Image converted...")
 
-# 应用卷积滤波
-blurred = convolve(image, blur_kernel)
-sharpened = convolve(image, sharpen_kernel)
-edges = convolve(image, edge_kernel)
+# Define kernels
+filters = [
+    ("Original", None),
+    ("Sharpened", np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])),
+    ("Diagonal Edged", np.array([[1, 0, -1], [0, 0, 0], [-1, 0, 1]])),
+    ("Gaussian Blurred", np.array([[1, 2, 1], [2, 4, 2], [1, 2, 1]]) / 16),
+    ("Blurred", np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]]) / 9),
+    ("Edged", np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]]))
+]
 
-# 显示结果
-titles = ['Original', 'Blurred', 'Sharpened', 'Edges']
-images = [image, blurred, sharpened, edges]
+# Apply kernels
+processed_images = [image]
 
-for i in range(4):
-    plt.subplot(1, 4, i+1)
-    plt.imshow(images[i], cmap='gray')
-    plt.title(titles[i])
+for title, kernel in tqdm(filters[1:], desc="Applying Filters", unit="filter"):
+    start_time = time.time()
+    processed_image = convolve(image, kernel)
+    elapsed_time = time.time() - start_time
+    print(f"{title}: Completed in {elapsed_time:.2f} seconds")
+    processed_images.append(processed_image)
+
+# Show Result
+
+for i, (title, img) in enumerate(zip([f[0] for f in filters], processed_images)):
+    plt.subplot(2, 3, i + 1)
+    plt.imshow(np.clip(img, 0, 255).astype(np.uint8))
+    plt.title(title)
     plt.axis('off')
-
+    
+plt.tight_layout()
 plt.show()
