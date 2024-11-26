@@ -1,4 +1,4 @@
-# Source code is for WemadeNext coding test.
+# Source code for WemadeNext coding test q.14
 ## Result 
 ![Result Image](/resources/Result.jpg "Result")
 ## Description
