@@ -7,5 +7,9 @@
 
 ## Description
 Personally installed python 3.9 environment by using Anaconda.  
-Require install opencv-python by command :  
-pip install opencv-python matplotlib
+
+## Environment
+>- python 3.9 installed by Anaconda
+>- pytorch installed by Anaconda
+>- tqdm : pip install tqdm
+>- opencv-python: pip install opencv-python matplotlib
